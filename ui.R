@@ -3,6 +3,7 @@ library(shiny)
 library(shinydashboard)
 library(DT)
 library(shinyjs)
+library(flexdashboard)
 
 ui <- function() {
   dashboardPage(
@@ -66,7 +67,7 @@ ui <- function() {
       sidebarMenu(
         id = "sidebar_tabs",
         menuItem("Overview", tabName = "dashboard", icon = icon("tachometer-alt")),
-        menuItem("Wetland Coverage Summary", tabName = "summary", icon = icon("table")),
+        menuItem("Survey Summary", tabName = "summary", icon = icon("table")),
         menuItem("Survey Completed", tabName = "survey_completed", icon = icon("check-circle")),
         menuItem("Covered Earlier", tabName = "covered_earlier", icon = icon("clock")),
         menuItem("No Hotspot Lists", tabName = "no_hotspot_lists", icon = icon("map-marker-alt")),
@@ -191,6 +192,7 @@ ui <- function() {
                   tags$hr(),
                   tags$b("Change Log:"),
                   tags$ul(
+                    tags$li("Added Animated Dashboard - 29 December 2025"),
                     tags$li("Added Species Summary - 23 December 2025"),
                     tags$li("Added Google Form submission status - 21 December 2025"),
                     tags$li("Summarized hotspots and incomplete lists by location; added this About page - 18 December 2025")
