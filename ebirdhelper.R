@@ -400,3 +400,12 @@ species_summary_table <- function(main_data, india_com_names) {
   
   return(summary_df)
 }
+
+prepare_main_summary <- function(main_data, start_date, end_date) {
+  cleaned <- prepare_main_data(main_data, start_date, end_date)
+  bird_count <- sum(cleaned$OBSERVATION.COUNT, na.rm = TRUE)
+  list(
+    data = cleaned,
+    bird_count = bird_count
+  )
+}

@@ -2,6 +2,7 @@
 library(shiny)
 library(shinydashboard)
 library(DT)
+library(shinyjs)
 
 ui <- function() {
   dashboardPage(
@@ -13,6 +14,9 @@ ui <- function() {
         tags$div(
           style = "display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding-right: 10px;",
           tags$img(src = "BCI.png", height = "30px", style = "margin-top: 10px;"),
+          tags$img(src = "wi.jpg", height = "30px", style = "margin-top: 10px;"),
+          tags$img(src = "iwc.jpg", height = "30px", style = "margin-top: 10px;"),
+          tags$img(src = "bnhs.png", height = "30px", style = "margin-top: 10px;"),
           tags$img(src = "eBird.png", height = "30px", style = "margin-top: 10px;")
         )
       )
@@ -44,10 +48,24 @@ ui <- function() {
           .content-wrapper, .right-side {
             background-color: #f8f9f4;
           }
+          .circle-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start; /* align items to top */
+          }
+          
+          .circle-label {
+            font-size: 18px;   /* slightly bigger */
+            font-weight: normal;
+            text-align: center;
+            margin-top: -100px;
+          }
         "))
       ),
       sidebarMenu(
         id = "sidebar_tabs",
+        menuItem("Overview", tabName = "dashboard", icon = icon("tachometer-alt")),
         menuItem("Wetland Coverage Summary", tabName = "summary", icon = icon("table")),
         menuItem("Survey Completed", tabName = "survey_completed", icon = icon("check-circle")),
         menuItem("Covered Earlier", tabName = "covered_earlier", icon = icon("clock")),
@@ -59,7 +77,54 @@ ui <- function() {
     ),
     
     dashboardBody(
+      useShinyjs(),   # <-- correct place      
+      # Loading overlay
+      div(
+        id = "loading-overlay",
+        style = "
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(255, 255, 255, 0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  ",
+        img(
+          src = "loading.jpg",
+          style = "
+      max-width: 50%;
+      width: auto;
+      height: auto;
+    "
+        ),
+        p(
+          "Loading data, please wait...",
+          style = "font-size: 16px; text-align: center; margin-top: 10px;"
+        )
+      ),
       tabItems(
+        tabItem(tabName = "dashboard",
+                h2(HTML("Asian Waterbird Census<br>03–18 January 2026"), align = "center"),
+                br(),
+                fluidRow(
+                  column(4, div(class = "circle-box",
+                                gaugeOutput("days_gauge", width = "200px", height = "200px"),
+                                div(class = "circle-label", "Days"))),
+                  column(4, div(class = "circle-box",
+                                gaugeOutput("wetlands_gauge", width = "200px", height = "200px"),
+                                div(class = "circle-label", "Wetlands"))),
+                  column(4, div(class = "circle-box",
+                                gaugeOutput("birds_gauge", width = "200px", height = "200px"),
+                                div(class = "circle-label", "Waterbirds")))
+                ),
+                br(), br()
+        ),
+        
         tabItem(tabName = "summary",
                 h3("Wetland Coverage Summary"),
                 br(),
@@ -115,8 +180,9 @@ ui <- function() {
                     tags$li("The ‘Survey Completed’ tab indicates wetlands where counts are already completed."),
                     tags$li("The ‘Covered Earlier’ tab shows wetlands covered before the recommended dates, which can be revisited during the recommended period."),
                     tags$li("AWC counts are accepted only from hotspots. Lists under ‘No Hotspot Lists’ indicate that hotspot editors need to approve the user-suggested hotspots or contact observers regarding hotspot creation."),
+                    tags$li("The ‘Species Summary’ tab is based only on lists submitted within the recommended dates following the AWC protocols."),
+                    tags$li("If more than one list is submitted for a hotspot, the species summary includes one amongst the several lists. In that sense, the summary is tentative and can change"),
                     tags$li("The ‘Species Summary’ tab is based only on lists submitted within the recommended dates following AWC protocols."),
-                    tags$li("The species summary includes only approved records. If your data is not visible, it may still be under review or may not follow AWC protocol (please check other tabs)."),
                     tags$li("Records of sensitive species are not displayed."),
                     tags$li("Raw data for a state or district can be downloaded along with the summary. For the full country, only the summary can be downloaded."),
                     tags$li("Incomplete lists are not accepted as AWC counts. Observers may be notified to review such submissions.")
@@ -131,7 +197,8 @@ ui <- function() {
                   ),
                   br(),
                   tags$p(style = "font-size: 14px; color: #555;",
-                         "Developed under Bird Count India’s data analysis initiatives.")
+                         "Developed under Bird Count India’s data analysis initiatives."),
+                  tags$a("Source Code", href = "https://github.com/paintedstork/awcproject/", target = "_blank")
                 )
       ),
         # ---- Species Summary ----

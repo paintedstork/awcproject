@@ -3,6 +3,7 @@ library(dplyr)
 library(DT)
 library(lubridate)
 library(stringr)
+library(later)
 
 server <- function(input, output, session) {
   # Load configs & helpers
@@ -37,12 +38,19 @@ server <- function(input, output, session) {
       default_end_date
     )
     
+    main_summary <- prepare_main_summary(data_list$main, 
+                                         default_start_date, 
+                                         default_end_date)
+    
     # Store summary + raw main data (lazy prepare later)
     data_ready(list(
       summary = qc_summary,
-      main_raw = data_list$main,
-      zip_created  = zip_info$created_time
-    ))
+      main_raw = main_summary$data,
+      zip_created = zip_info$created_time,
+      bird_count = main_summary$bird_count
+    ))  
+    # Hide overlay
+    shinyjs::runjs("$('#loading-overlay').fadeOut(500);")
   })
   
   # --------------------------
@@ -211,4 +219,94 @@ server <- function(input, output, session) {
       zip(zipfile = file, files = files_to_zip, flags = "-j")
     }
   )
+  
+  # --------------------------
+  # Animated Dashboard Gauges
+  # --------------------------
+  
+  vals <- reactiveVal(list(days = 0, wetlands = 0, birds = 0))
+  
+  
+  # Function to animate a single gauge
+  animate_gauge <- function(output_id, start_value, end_value, max, color, steps = 30, delay = 0.03) {
+    step_values <- seq(start_value, end_value, length.out = steps)
+    
+    for (i in seq_along(step_values)) {
+      local({
+        value <- step_values[i]  # capture the current value in this iteration
+        later::later(function() {
+          output[[output_id]] <- renderGauge({
+            gauge(
+              value = round(value),   # explicitly provide the 'value'
+              min = 0,
+              max = max,
+              sectors = gaugeSectors(success = c(0, max), colors = color)
+            )
+          })
+        }, delay = (i - 1) * delay)
+      })
+    }
+  }
+  
+  # Update values and animate when data is ready
+  observeEvent(data_ready(), {
+    today <- Sys.Date()
+    current_day <- if (today < default_start_date) {
+      0
+    } else if (today > default_end_date) {
+      as.integer(default_end_date - default_start_date) + 1
+    } else {
+      as.integer(today - default_start_date) + 1
+    }
+    
+    wetlands_df <- data_ready()$summary$survey_completed
+    wetlands_count <- if (!is.null(wetlands_df)) nrow(wetlands_df) else 0
+    birds_count <- data_ready()$bird_count %||% 0
+    
+    vals(list(
+      days = as.numeric(current_day),
+      wetlands = as.numeric(wetlands_count),
+      birds = as.numeric(birds_count)
+    ))
+    
+    # Animate the gauges
+    animate_gauge(
+      "days_gauge", 0, current_day,
+      max = as.integer(default_end_date - default_start_date) + 1,
+      color = "#2E86C1"
+    )
+    animate_gauge(
+      "wetlands_gauge", 0, wetlands_count,
+      max = max(1000, wetlands_count),
+      color = "#28B463"
+    )
+    animate_gauge(
+      "birds_gauge", 0, birds_count,
+      max = max(1000000, birds_count),
+      color = "#F39C12"
+    )
+  })
+  
+  # Re-animate gauges when user switches back to Overview tab
+  observeEvent(input$sidebar_tabs, {
+    req(vals())
+    if (input$sidebar_tabs == "dashboard") {
+      v <- vals()
+      animate_gauge(
+        "days_gauge", 0, v$days,
+        max = as.integer(default_end_date - default_start_date) + 1,
+        color = "#2E86C1"
+      )
+      animate_gauge(
+        "wetlands_gauge", 0, v$wetlands,
+        max = max(1000, v$wetlands),
+        color = "#28B463"
+      )
+      animate_gauge(
+        "birds_gauge", 0, v$birds,
+        max = max(1000000, v$birds),
+        color = "#F39C12"
+      )
+    }
+  })
 }
