@@ -9,6 +9,12 @@ read_india_names <- function()
   return (read.csv("english_india.csv", stringsAsFactors = FALSE))
   
 }
+
+read_waterbird_list <- function()
+{
+  return(read.csv("waterbirds.csv", stringsAsFactors = FALSE))
+}
+
 # Read eBird data from zip
 read_ebird_data <- function(zip_path, zip_file) {
   # Full path to the zip
@@ -111,6 +117,10 @@ generate_summary_tables <- function(sampling_data, form_data, start_date, end_da
       is_recommended = OBSERVATION.DATE >= start_date & OBSERVATION.DATE <= end_date,
       List = paste0("<a href='https://ebird.org/checklist/", SAMPLING.EVENT.IDENTIFIER,
                     "' target='_blank'>", SAMPLING.EVENT.IDENTIFIER, "</a>"),
+      Hotspot = ifelse(!is.na(LOCALITY.ID),
+                             paste0("<a href='https://ebird.org/hotspot/", LOCALITY.ID,
+                                    "' target='_blank'>", LOCALITY, "</a>"),
+                             LOCALITY),
       event_num = as.numeric(str_remove(SAMPLING.EVENT.IDENTIFIER, "^S"))
     )
   
@@ -137,25 +147,13 @@ generate_summary_tables <- function(sampling_data, form_data, start_date, end_da
   # Recommended wetlands
   wetlands_recommended <- dedup %>%
     filter(is_recommended, LOCALITY.TYPE == "H", ALL.SPECIES.REPORTED == 1) %>%
-    group_by(LOCALITY.ID, LOCALITY, COUNTY, STATE) %>%
+    group_by(LOCALITY.ID, Hotspot, COUNTY, STATE) %>%
     summarise(
       List = paste(List, collapse = ", "),
       Form = if_else(any(Form_Submitted == "Yes"), "Yes", "No"),
       .groups = "drop"
     ) %>%
-    rename(Wetland = LOCALITY, District = COUNTY, State = STATE) %>%
-    arrange(State, District, Wetland)
-  
-  # Other wetlands (outside recommended dates)
-  wetlands_other <- dedup %>%
-    filter(!is_recommended, LOCALITY.TYPE == "H", ALL.SPECIES.REPORTED == 1) %>%
-    group_by(LOCALITY.ID, LOCALITY, COUNTY, STATE) %>%
-    summarise(
-      List = paste(List, collapse = ", "),
-      Form = if_else(any(Form_Submitted == "Yes"), "Yes", "No"),
-      .groups = "drop"
-    ) %>%
-    rename(Wetland = LOCALITY, District = COUNTY, State = STATE) %>%
+    rename(Wetland = Hotspot, District = COUNTY, State = STATE) %>%
     arrange(State, District, Wetland)
   
   # ---- No Hotspot Lists (grouped + ordered) ----
@@ -187,13 +185,13 @@ generate_summary_tables <- function(sampling_data, form_data, start_date, end_da
   covered_earlier <- dedup %>%
     filter(OBSERVATION.DATE < start_date, LOCALITY.TYPE == "H", ALL.SPECIES.REPORTED == 1) %>%
     anti_join(visited_within, by = "LOCALITY.ID") %>%
-    group_by(LOCALITY.ID, LOCALITY, COUNTY, STATE) %>%
+    group_by(LOCALITY.ID, Hotspot, COUNTY, STATE) %>%
     summarise(
       List = paste(List, collapse = ", "),
       Form = if_else(any(Form_Submitted == "Yes"), "Yes", "No"),
       .groups = "drop"
     ) %>%
-    rename(Wetland = LOCALITY, District = COUNTY, State = STATE) %>%
+    rename(Wetland = Hotspot, District = COUNTY, State = STATE) %>%
     arrange(State, District, Wetland)
   
   summary_table <- dedup %>%
@@ -352,35 +350,54 @@ species_summary_table <- function(main_data, india_com_names) {
     select(SCIENTIFIC.NAME, COMMON.NAME, TAXONOMIC.ORDER) %>%
     distinct()
   
+  # --- Deduplicate per site before region-wise aggregation ---
+  dedup_data <- main_data %>%
+    # ensure OBSERVATION.COUNT is numeric and valid
+    mutate(OBSERVATION.COUNT = suppressWarnings(as.numeric(OBSERVATION.COUNT))) %>%
+    group_by(LOCALITY.ID, SCIENTIFIC.NAME) %>%
+    summarise(
+      OBSERVATION.COUNT = if (all(is.na(OBSERVATION.COUNT))) NA_real_
+      else max(OBSERVATION.COUNT, na.rm = TRUE),
+      STATE = first(STATE),
+      COUNTY = first(COUNTY),
+      LOCALITY = first(LOCALITY),
+      .groups = "drop"
+    )  
   # --- Determine view level ---
-  n_states <- n_distinct(main_data$STATE)
-  n_districts <- n_distinct(main_data$COUNTY)
+  n_states <- n_distinct(dedup_data$STATE)
+  n_districts <- n_distinct(dedup_data$COUNTY)
   
   if (n_states > 1) {
     # Species × State
-    summary_df <- main_data %>%
+    summary_df <- dedup_data %>%
       group_by(SCIENTIFIC.NAME, STATE) %>%
       summarise(Count = sum(OBSERVATION.COUNT, na.rm = TRUE), .groups = "drop") %>%
       pivot_wider(names_from = STATE, values_from = Count, values_fill = 0)
     
   } else if (n_districts > 1) {
     # Species × District
-    summary_df <- main_data %>%
+    summary_df <- dedup_data %>%
       group_by(SCIENTIFIC.NAME, COUNTY) %>%
       summarise(Count = sum(OBSERVATION.COUNT, na.rm = TRUE), .groups = "drop") %>%
       pivot_wider(names_from = COUNTY, values_from = Count, values_fill = 0)
     
   } else {
     # Species × Wetland
-    summary_df <- main_data %>%
+    summary_df <- dedup_data %>%
       group_by(SCIENTIFIC.NAME, LOCALITY) %>%
       summarise(Count = sum(OBSERVATION.COUNT, na.rm = TRUE), .groups = "drop") %>%
       pivot_wider(names_from = LOCALITY, values_from = Count, values_fill = 0)
-  }
-  
+  }  
   # --- Join with TAXONOMIC.ORDER + COMMON.NAME ---
   summary_df <- summary_df %>%
     left_join(taxa_order_table, by = "SCIENTIFIC.NAME")  # join to get order and original common name
+  
+  lang_replacements <- c(
+    "Gray" = "Grey",
+    "gray" = "grey",
+    "Color" = "Colour",
+    "color" = "colour"
+  )
   
   # --- Override COMMON.NAME with REVISED_ALTERNATE_COM_NAME if provided ---
   if (!is.null(india_com_names)) {
@@ -388,24 +405,38 @@ species_summary_table <- function(main_data, india_com_names) {
       left_join(india_com_names, by = c("SCIENTIFIC.NAME" = "sci_name")) %>%
       mutate(COMMON.NAME = ifelse(!is.na(REVISED_ALTERNATE_COM_NAME),
                                   REVISED_ALTERNATE_COM_NAME,
-                                  COMMON.NAME)) %>%
+                                  COMMON.NAME),
+             COMMON.NAME = str_replace_all(COMMON.NAME, lang_replacements)) %>%
       select(-REVISED_ALTERNATE_COM_NAME)
   }  
   
   # --- Sort by TAXONOMIC.ORDER and reorder columns ---
   summary_df <- summary_df %>%
-    distinct() %>%                          # remove exact duplicate rows
     arrange(TAXONOMIC.ORDER) %>%
-    select(COMMON.NAME, everything(), -TAXONOMIC.ORDER, -SCIENTIFIC.NAME)
-  
+    select(COMMON.NAME, everything(), -TAXONOMIC.ORDER, -SCIENTIFIC.NAME) %>%
+    distinct()                           # remove exact duplicate rows
+    
   return(summary_df)
 }
 
 prepare_main_summary <- function(main_data, start_date, end_date) {
   cleaned <- prepare_main_data(main_data, start_date, end_date)
-  bird_count <- sum(cleaned$OBSERVATION.COUNT, na.rm = TRUE)
+  
+  waterbirds <- read_waterbird_list()
+  india_com_names <- read_india_names()
+  
+  waterbird_data <- cleaned %>%
+    inner_join(waterbirds, by = c("SCIENTIFIC.NAME" = "Name"))
+  
+  dedup_summary <- species_summary_table(waterbird_data, india_com_names)
+
+  numeric_cols <- dedup_summary %>%
+    select(where(is.numeric)) %>%
+    as.matrix()
+  
+  bird_count <- sum(numeric_cols, na.rm = TRUE)  
   list(
-    data = cleaned,
+    data = cleaned, # full data for raw download
     bird_count = bird_count
   )
 }
