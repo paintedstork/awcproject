@@ -9,48 +9,100 @@ server <- function(input, output, session) {
   # Load configs & helpers
   source("config.R")
   source("drivehelper.R")
+  source("sheethelper.R")
   source("formhelper.R")
   source("ebirdhelper.R")
   
   authenticate_drive(drive_json)
-  authenticate_sheets(drive_json)
+  authenticate_form_sheets(drive_json)
   india <- read_india_names()
   
   # Reactive data processing
   data_ready <- reactiveVal(NULL)
   
   observe({
-    zip_info <- get_zip_file(folder_id)
-    req(zip_info)
+    query <- parseQueryString(session$clientData$url_search)
     
-    zip_path <- dirname(zip_info$file_path)
-    zip_file <- basename(zip_info$file_path)
-    
-    data_list <- read_ebird_data(zip_path, zip_file)
-    
-    form_data <- get_form_data(sheet_url)
-    message("✅ Form data loaded with ", nrow(form_data), " entries.")
-    
-    qc_summary <- generate_summary_tables(
-      data_list$sampling,
-      form_data,
-      default_start_date,
-      default_end_date
-    )
-    
-    main_summary <- prepare_main_summary(data_list$main, 
-                                         default_start_date, 
-                                         default_end_date)
-    
-    # Store summary + raw main data (lazy prepare later)
-    data_ready(list(
-      summary = qc_summary,
-      main_raw = main_summary$data,
-      zip_created = zip_info$created_time,
-      bird_count = main_summary$bird_count
-    ))  
-    # Hide overlay
-    shinyjs::runjs("$('#loading-overlay').fadeOut(500);")
+    if (!is.null(query$action) && query$action == "run" && query$key == superSecretKey) {
+      # Headless processing
+      cat("🚀 Headless trigger detected — starting processing...\n")
+      
+      # --- Your five-step workflow here ---
+      zip_info <- get_zip_file(folder_id, "^project-report.*\\.zip$")
+      if (is.null(zip_info)) stop("No project ZIP found in Drive.")
+      zip_path <- zip_info$file_path
+      zip_dir  <- dirname(zip_path)
+      zip_file <- basename(zip_path)
+      
+      form_data <- get_form_data(sheet_url)
+      ebird <- read_ebird_data(zip_dir, zip_file)
+      main <- ebird$main
+      sampling <- ebird$sampling
+      
+      summaries <- generate_summary_tables(sampling, form_data, default_start_date, default_end_date)
+      main_summary <- prepare_main_summary(main, default_start_date, default_end_date)
+      
+      excel_file <- write_summary_sheets(summaries, main_summary)
+      zip_file_out <- zip_summary_file(excel_file)
+      upload_summary_zip(zip_file_out, folder_id)
+      
+      cat("✅ Headless processing complete.\n")
+      
+    } else {
+      
+      t_start <- Sys.time()
+      if (readsummaries) {
+        message("📖 Reading summaries from AWCSummaries.zip...")
+        
+        zip_info <- get_zip_file(folder_id, "^AWCSummaries.*\\.zip$")
+        req(zip_info)
+        
+        results <- read_summary_sheets(zip_info$file_path)
+        data_ready(list(
+          summary = results$summaries,
+          main_raw = NULL,
+          zip_created = zip_info$created_time,
+          bird_count = results$main_summary$bird_count
+        ))
+        
+      } else {
+        message("☁️ Running full processing workflow from Drive + Form + ZIP...")
+        
+        zip_info <- get_zip_file(folder_id, "^project-report.*\\.zip$")
+        req(zip_info)
+        
+        zip_path <- dirname(zip_info$file_path)
+        zip_file <- basename(zip_info$file_path)
+        
+        data_list <- read_ebird_data(zip_path, zip_file)
+        
+        form_data <- get_form_data(sheet_url)
+        message("✅ Form data loaded with ", nrow(form_data), " entries.")
+        
+        qc_summary <- generate_summary_tables(
+          data_list$sampling,
+          form_data,
+          default_start_date,
+          default_end_date
+        )
+        
+        main_summary <- prepare_main_summary(data_list$main, 
+                                             default_start_date, 
+                                             default_end_date)
+        
+        # Store summary + raw main data (lazy prepare later)
+        data_ready(list(
+          summary = qc_summary,
+          main_raw = main_summary$data,
+          zip_created = zip_info$created_time,
+          bird_count = main_summary$bird_count
+        ))  
+      }
+      t_end <- Sys.time()
+      message("⏱️ Overall observe() time: ", round(difftime(t_end, t_start, units = "secs"), 2), " sec")
+      # Hide overlay
+      shinyjs::runjs("$('#loading-overlay').fadeOut(500);")
+    }
   })
   
   # --------------------------
@@ -119,6 +171,9 @@ server <- function(input, output, session) {
   
   # Prepare main data lazily — only when tab opened
   main_data_lazy <- reactive({
+    
+    if (readsummaries) return(NULL)  # No main data in spreadsheet mode
+    
     req(data_ready()$main_raw)
     
     # Trigger only when the "species_summary" tab is active
@@ -309,4 +364,11 @@ server <- function(input, output, session) {
       )
     }
   })
+  output$mode_info <- renderText({
+    if (readsummaries)
+      "Running in summaries mode (showing last processed data)."
+    else
+      "Running in live mode (processing latest eBird data from Drive)."
+  })
+  
 }

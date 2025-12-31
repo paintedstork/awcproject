@@ -25,35 +25,36 @@ authenticate_drive <- function(drive_json) {
 # --------------------------------------------------
 # Get ZIP file
 # --------------------------------------------------
-get_zip_file <- function(folder_id) {
+get_zip_file <- function(folder_id, zip_pattern = "\\.zip$") {
   if (read_locally) {
     message("📂 Reading local ZIP file: ", LOCAL_FILE)
     if (!file.exists(LOCAL_FILE)) stop("Local file not found: ", LOCAL_FILE)
     temp_zip <- LOCAL_FILE
-    file_date <- file.info(LOCAL_FILE)$ctime  # creation date for local file
+    file_date <- file.info(LOCAL_FILE)$ctime
   } else {
     message("☁️ Fetching ZIP from Google Drive folder...")
     files <- drive_ls(as_id(folder_id)) %>%
-      filter(str_detect(name, "\\.zip$"))
+      filter(str_detect(name, zip_pattern))
     
     if (nrow(files) == 0) {
-      warning("⚠️ No ZIP file found in Google Drive folder.")
+      warning("⚠️ No ZIP file found matching pattern: ", zip_pattern)
       return(NULL)
     }
     
-    zip_file <- files[1, ]  # take the first ZIP
+    zip_file <- files[1, ]  # pick the first matching file
     temp_zip <- tempfile(fileext = ".zip")
     drive_download(zip_file$id, path = temp_zip, overwrite = TRUE)
     message("✅ File downloaded to: ", temp_zip)
     
     # Get Drive file creation time
-    drive_resource <- zip_file$drive_resource[[1]]
-    created_time <- as.POSIXct(drive_resource$createdTime,
-                               format = "%Y-%m-%dT%H:%M:%OSZ",
-                               tz = "UTC")
+    created_time <- as.POSIXct(
+      zip_file$drive_resource[[1]]$createdTime,
+      format = "%Y-%m-%dT%H:%M:%OSZ",
+      tz = "UTC"
+    )
     file_date <- created_time
   }
   
-  return(list(file_path = temp_zip, created_time = file_date))
+  list(file_path = temp_zip, created_time = file_date)
 }
 

@@ -5,7 +5,15 @@ library(DT)
 library(shinyjs)
 library(flexdashboard)
 
-ui <- function() {
+ui <- function(request) {
+  query <- parseQueryString(request$QUERY_STRING)
+  
+  if (!is.null(query$action) && query$action == "run" && query$key == superSecretKey) {
+    fluidPage(
+      # Optional: a tiny message for debugging logs
+      tags$head(tags$style("body { font-family: sans-serif; margin: 40px; }")),
+      h3("✅ Processing started. Check server logs for progress."))
+  } else {
   dashboardPage(
     skin = "blue",  # we’ll override colors below
     dashboardHeader(
@@ -80,6 +88,7 @@ ui <- function() {
     dashboardBody(
       useShinyjs(),   # <-- correct place      
       # Loading overlay
+      # Responsive loading overlay
       div(
         id = "loading-overlay",
         style = "
@@ -95,18 +104,42 @@ ui <- function() {
     justify-content: center;
     z-index: 9999;
   ",
-        img(
-          src = "loading.jpg",
-          style = "
-      max-width: 50%;
-      width: auto;
+        
+        # CSS for responsiveness
+        tags$style(HTML("
+    #loading-overlay img {
+      max-width: 30vw; /* scales with viewport width */
       height: auto;
-    "
-        ),
-        p(
-          "Loading data, please wait...",
-          style = "font-size: 16px; text-align: center; margin-top: 10px;"
-        )
+    }
+    #loading-overlay p {
+      font-size: 1.2rem;
+      text-align: center;
+      margin-top: 10px;
+    }
+
+    /* Tablet screens */
+    @media (max-width: 992px) {
+      #loading-overlay img {
+        max-width: 60vw;
+      }
+      #loading-overlay p {
+        font-size: 1.2rem;
+      }
+    }
+
+    /* Mobile phones */
+    @media (max-width: 600px) {
+      #loading-overlay img {
+        max-width: 85vw;
+      }
+      #loading-overlay p {
+        font-size: 1.1rem;
+      }
+    }
+  ")),
+        
+        img(src = "loading.jpg"),
+        p("Loading data, please wait...")
       ),
       tabItems(
         tabItem(tabName = "dashboard",
@@ -228,4 +261,5 @@ ui <- function() {
       )
     )
   )
+  }
 }

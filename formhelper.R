@@ -14,7 +14,7 @@ LOCAL_FORM_FILE <- "data/form_data.csv"  # optional fallback file
 # --------------------------------------------------
 # Authentication
 # --------------------------------------------------
-authenticate_sheets <- function(service_json) {
+authenticate_form_sheets <- function(service_json) {
   if (!read_local_sheet) {
     gs4_auth(path = service_json)
     message("✅ Google Sheets authentication successful.")
