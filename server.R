@@ -5,13 +5,14 @@ library(lubridate)
 library(stringr)
 library(later)
 
+query_env <- parseQueryString(Sys.getenv("QUERY_STRING", ""))
+if (!is.null(query_env$action) && query_env$action == "run" && query_env$key == superSecretKey) {
+  message("🚀 Headless trigger received before UI finishes sending 200 OK")
+}
+
+
 server <- function(input, output, session) {
   # Load configs & helpers
-  source("config.R")
-  source("drivehelper.R")
-  source("sheethelper.R")
-  source("formhelper.R")
-  source("ebirdhelper.R")
   
   authenticate_drive(drive_json)
   authenticate_form_sheets(drive_json)
@@ -23,49 +24,31 @@ server <- function(input, output, session) {
   observe({
     query <- parseQueryString(session$clientData$url_search)
     
-    if (!is.null(query$action) && query$action == "run" && query$key == superSecretKey) {
-      # Headless processing
-      cat("🚀 Headless trigger detected — starting processing...\n")
-      
-      # --- Your five-step workflow here ---
-      zip_info <- get_zip_file(folder_id, "^project-report.*\\.zip$")
-      if (is.null(zip_info)) stop("No project ZIP found in Drive.")
-      zip_path <- zip_info$file_path
-      zip_dir  <- dirname(zip_path)
-      zip_file <- basename(zip_path)
-      
-      form_data <- get_form_data(sheet_url)
-      ebird <- read_ebird_data(zip_dir, zip_file)
-      main <- ebird$main
-      sampling <- ebird$sampling
-      
-      summaries <- generate_summary_tables(sampling, form_data, default_start_date, default_end_date)
-      main_summary <- prepare_main_summary(main, default_start_date, default_end_date)
-      
-      excel_file <- write_summary_sheets(summaries, main_summary)
-      zip_file_out <- zip_summary_file(excel_file)
-      upload_summary_zip(zip_file_out, folder_id)
-      
-      cat("✅ Headless processing complete.\n")
-      
-    } else {
-      
+    if (is.null(query$action))
+    {
       t_start <- Sys.time()
       if (readsummaries) {
         message("📖 Reading summaries from AWCSummaries.zip...")
         
         zip_info <- get_zip_file(folder_id, "^AWCSummaries.*\\.zip$")
-        req(zip_info)
+        if (!is.null(zip_info))
+        {
+          req(zip_info)
         
-        results <- read_summary_sheets(zip_info$file_path)
-        data_ready(list(
-          summary = results$summaries,
-          main_raw = NULL,
-          zip_created = zip_info$created_time,
-          bird_count = results$main_summary$bird_count
-        ))
+          results <- read_summary_sheets(zip_info$file_path)
+          data_ready(list(
+            summary = results$summaries,
+            main_raw = NULL,
+            zip_created = zip_info$created_time,
+            bird_count = results$main_summary$bird_count
+          ))
+        } else {
+          readsummaries = FALSE
+        }
         
-      } else {
+      } 
+      if (!readsummaries) 
+      {
         message("☁️ Running full processing workflow from Drive + Form + ZIP...")
         
         zip_info <- get_zip_file(folder_id, "^project-report.*\\.zip$")

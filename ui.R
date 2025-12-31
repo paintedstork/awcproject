@@ -1,4 +1,10 @@
 # ui.R
+source("config.R")
+source("drivehelper.R")
+source("sheethelper.R")
+source("formhelper.R")
+source("ebirdhelper.R")
+source("headless.R")
 library(shiny)
 library(shinydashboard)
 library(DT)
@@ -8,11 +14,21 @@ library(flexdashboard)
 ui <- function(request) {
   query <- parseQueryString(request$QUERY_STRING)
   
-  if (!is.null(query$action) && query$action == "run" && query$key == superSecretKey) {
-    fluidPage(
-      # Optional: a tiny message for debugging logs
-      tags$head(tags$style("body { font-family: sans-serif; margin: 40px; }")),
-      h3("✅ Processing started. Check server logs for progress."))
+  if (!is.null(query$action) && query$action == "run") {
+    if (query$key == superSecretKey) {
+      headlessProc()  # Run your processing first
+      
+      fluidPage(
+        # Optional: a tiny message for debugging logs
+        tags$head(tags$style("body { font-family: sans-serif; margin: 40px; }")),
+        h3("✅ Processing  completed. Check server logs for progress.")
+      )
+    } else {
+      fluidPage(
+        tags$head(tags$style("body { font-family: sans-serif; margin: 40px; }")),
+        h3("⚠️ Invalid secret key.")
+      )
+    }
   } else {
   dashboardPage(
     skin = "blue",  # we’ll override colors below
@@ -198,7 +214,7 @@ ui <- function(request) {
                   # Project link and title
                   tags$b("Bird Count India Tools: "),
                   tags$a("Asian Waterbird Census (India) Project", href = "https://ebird.org/projects/1051", target = "_blank"),
-                  tags$p("The Asian Waterbird Census (AWC): Dashboard for eBird AWC Project Regional Coordinators."),
+                  tags$p("The Asian Waterbird Census (AWC): Dashboard for eBird AWC Coordinators and Counters."),
                   
                   # Last dataset update line
                   tags$p(
@@ -219,12 +235,14 @@ ui <- function(request) {
                     tags$li("The ‘Species Summary’ tab is based only on lists submitted within the recommended dates following AWC protocols."),
                     tags$li("Records of sensitive species are not displayed."),
                     tags$li("Raw data for a state or district can be downloaded along with the summary. For the full country, only the summary can be downloaded."),
-                    tags$li("Incomplete lists are not accepted as AWC counts. Observers may be notified to review such submissions.")
+                    tags$li("Incomplete lists are not accepted as AWC counts. Observers may be notified to review such submissions."),
+                    tags$li( tags$a( "For more details, visit Bird Count India AWC page.", href = "https://birdcount.in/event/awc/", target = "_blank"))
                   ),
                   
                   tags$hr(),
                   tags$b("Change Log:"),
                   tags$ul(
+                    tags$li("Optimized load time - 31 December 2025"),
                     tags$li("Added Animated Dashboard - 29 December 2025"),
                     tags$li("Added Species Summary - 23 December 2025"),
                     tags$li("Added Google Form submission status - 21 December 2025"),
