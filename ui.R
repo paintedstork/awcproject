@@ -10,6 +10,7 @@ library(shinydashboard)
 library(DT)
 library(shinyjs)
 library(flexdashboard)
+library(shinycssloaders)
 
 ui <- function(request) {
   query <- parseQueryString(request$QUERY_STRING)
@@ -242,6 +243,7 @@ ui <- function(request) {
                   tags$hr(),
                   tags$b("Change Log:"),
                   tags$ul(
+                    tags$li("Fixed loading of species summary - 03 January 2026. Known bugs: 1. . Download of country data has a stale datafile."),
                     tags$li("Optimized load time - 31 December 2025"),
                     tags$li("Added Animated Dashboard - 29 December 2025"),
                     tags$li("Added Species Summary - 23 December 2025"),
@@ -274,7 +276,7 @@ ui <- function(request) {
                 ),
                 
                 br(),
-                DTOutput("species_table")
+                withSpinner(DTOutput("species_table"), type = 6)
         )
       )
     )
