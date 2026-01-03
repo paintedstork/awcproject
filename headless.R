@@ -1,5 +1,8 @@
 headlessProc <- function()
 {
+  authenticate_drive(drive_json)
+  authenticate_form_sheets(drive_json)
+  
   # Headless processing
   cat("🚀 Headless trigger detected — starting processing...\n")
   
