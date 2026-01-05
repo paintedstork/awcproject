@@ -8,6 +8,8 @@ library(stringr)
 library(writexl)
 library(zip)
 
+
+
 # --------------------------------------------------
 # Read summary sheets from extracted Excel
 # --------------------------------------------------
@@ -37,20 +39,43 @@ read_summary_sheets <- function(zip_path) {
     summary          = read_if_exists("Summary"),
     survey_completed = read_if_exists("Completed"),
     covered_earlier  = read_if_exists("Earlier"),
+    covered_later    = read_if_exists("Later"),
     no_hotspot_lists = read_if_exists("No_Hotspot"),
     incomplete_lists = read_if_exists("Incomplete")
   )
   
   # Bird count
-  bird_tab <- read_if_exists("Overview")
-  bird_count <- NA
-  if (nrow(bird_tab) > 0 && "Value" %in% names(bird_tab)) {
-    bird_count <- suppressWarnings(as.numeric(bird_tab$Value[1]))
+  overview_tab <- read_if_exists("Overview")
+
+  bird_count     <- NA
+  species_count  <- NA
+  district_count <- NA
+  state_count    <- NA
+  
+  overview_tab <- read_if_exists("Overview")
+  if (nrow(overview_tab) > 0 && all(c("Metric", "Value") %in% names(overview_tab))) {
+    overview_tab$Value <- suppressWarnings(as.numeric(overview_tab$Value))
+  } else {
+    overview_tab <- data.frame(Metric = character(), Value = numeric())
   }
+  
+  # Extract counts (if present)
+  get_value <- function(metric) {
+    val <- overview_tab$Value[overview_tab$Metric == metric]
+    if (length(val) == 0) return(NA) else return(val)
+  }
+
+  bird_count     = get_value("Bird Count")
+  species_count  = get_value("Species Count")
+  district_count = get_value("District Count")
+  state_count    = get_value("State Count")
   
   main_summary <- list(
     data = NULL,  # we don’t have species-level data here
-    bird_count = bird_count
+    bird_count = bird_count,
+    species_count = species_count,
+    district_count = district_count,
+    state_count = state_count
   )
   
   message("✅ Summary sheets successfully loaded.\n")
@@ -65,9 +90,16 @@ write_summary_sheets <- function(summaries, main_summary, output_file = "AWCSumm
     Summary      = summaries$summary,
     Completed    = summaries$survey_completed,
     Earlier      = summaries$covered_earlier,
+    Later        = summaries$covered_later,
     No_Hotspot   = summaries$no_hotspot_lists,
     Incomplete   = summaries$incomplete_lists,
-    Overview     = data.frame(Value = main_summary$bird_count)
+    Overview = data.frame(
+                 Metric = c("Bird Count", "Species Count", "District Count", "State Count"),
+                 Value  = c(main_summary$bird_count,
+                 main_summary$species_count,
+                 main_summary$district_count,
+                 main_summary$state_count)
+    )
   )
   
   writexl::write_xlsx(sheets, path = output_file)

@@ -162,11 +162,12 @@ generate_summary_tables <- function(sampling_data, form_data, start_date, end_da
     group_by(LOCALITY.ID, LOCALITY, COUNTY, STATE) %>%
     summarise(
       List = paste(List, collapse = ", "),
+      Recommended_Dates = if_else(any(is_recommended), "Yes", "No"),
       .groups = "drop"
     ) %>%
     rename(Locality = LOCALITY, District = COUNTY, State = STATE) %>%
     arrange(State, District, Locality) %>%
-    select(Locality, District, State, List) 
+    select(Locality, District, State, List, Recommended_Dates) 
   
   # ---- Incomplete Lists (grouped + ordered) ----
   incomplete_lists <- dedup %>%
@@ -174,17 +175,36 @@ generate_summary_tables <- function(sampling_data, form_data, start_date, end_da
     group_by(LOCALITY.ID, LOCALITY, COUNTY, STATE) %>%
     summarise(
       List = paste(List, collapse = ", "),
+      Recommended_Dates = if_else(any(is_recommended), "Yes", "No"),
       .groups = "drop"
     ) %>%
     rename(Wetland = LOCALITY, District = COUNTY, State = STATE) %>%
     arrange(State, District, Wetland) %>%
-    select(Wetland, District, State, List)
+    select(Wetland, District, State, List, Recommended_Dates)
   
   visited_within <- wetlands_recommended %>% select(LOCALITY.ID)
   
   covered_earlier <- dedup %>%
-    filter(OBSERVATION.DATE < start_date, LOCALITY.TYPE == "H", ALL.SPECIES.REPORTED == 1) %>%
+    filter(OBSERVATION.DATE < start_date & OBSERVATION.DATE >= as.Date(paste0(year(end_date)-1, "-12-01")),
+           LOCALITY.TYPE == "H", 
+           ALL.SPECIES.REPORTED == 1) %>%
     anti_join(visited_within, by = "LOCALITY.ID") %>%
+    group_by(LOCALITY.ID, Hotspot, COUNTY, STATE) %>%
+    summarise(
+      List = paste(List, collapse = ", "),
+      Form = if_else(any(Form_Submitted == "Yes"), "Yes", "No"),
+      .groups = "drop"
+    ) %>%
+    rename(Wetland = Hotspot, District = COUNTY, State = STATE) %>%
+    arrange(State, District, Wetland)
+  
+  covered_later <- dedup %>%
+    filter(
+      OBSERVATION.DATE > end_date & OBSERVATION.DATE <= as.Date(paste0(year(end_date), "-02-28")),
+      LOCALITY.TYPE == "H",
+      ALL.SPECIES.REPORTED == 1
+    ) %>%
+    anti_join(wetlands_recommended %>% select(LOCALITY.ID), by = "LOCALITY.ID") %>%
     group_by(LOCALITY.ID, Hotspot, COUNTY, STATE) %>%
     summarise(
       List = paste(List, collapse = ", "),
@@ -198,7 +218,14 @@ generate_summary_tables <- function(sampling_data, form_data, start_date, end_da
     group_by(STATE, COUNTY) %>%
     summarise(
       `Covered (Recommended Dates)` = n_distinct(LOCALITY.ID[is_recommended]),
-      `Covered (Earlier)` = n_distinct(LOCALITY.ID[OBSERVATION.DATE < start_date]),
+      `Covered (Earlier)` = n_distinct(LOCALITY.ID[
+        OBSERVATION.DATE < start_date &
+          OBSERVATION.DATE >= as.Date(paste0(year(end_date) - 1, "-12-01"))
+      ]),
+      `Covered (Later)` = n_distinct(LOCALITY.ID[
+        OBSERVATION.DATE > end_date &
+          OBSERVATION.DATE <= as.Date(paste0(year(end_date), "-02-28"))
+      ]),
       `No Hotspot Lists` = n_distinct(SAMPLING.EVENT.IDENTIFIER[is.na(LOCALITY.ID) | LOCALITY.TYPE != "H"]),
       `Form Submitted` = sum(Form_Submitted == "Yes", na.rm = TRUE),
       .groups = "drop"
@@ -209,8 +236,9 @@ generate_summary_tables <- function(sampling_data, form_data, start_date, end_da
     summary = summary_table,
     survey_completed = wetlands_recommended %>% select(Wetland, District, State, List, Form),
     covered_earlier = covered_earlier %>% select(Wetland, District, State, List, Form),
-    no_hotspot_lists = no_hotspot_lists %>% select(List, Locality, District, State),
-    incomplete_lists = incomplete_lists %>% select(List, Wetland, District, State)
+    covered_later = covered_later %>% select(Wetland, District, State, List, Form),
+    no_hotspot_lists = no_hotspot_lists %>% select(List, Locality, District, State, Recommended_Dates),
+    incomplete_lists = incomplete_lists %>% select(List, Wetland, District, State, Recommended_Dates)
   )
 }
 
@@ -435,8 +463,17 @@ prepare_main_summary <- function(main_data, start_date, end_date) {
     as.matrix()
   
   bird_count <- sum(numeric_cols, na.rm = TRUE)  
+  
+  # ---- NEW: Additional metrics for new dashboard dials ----
+  species_count  <- n_distinct(waterbird_data$SCIENTIFIC.NAME)
+  district_count <- n_distinct(waterbird_data$COUNTY)
+  state_count    <- n_distinct(waterbird_data$STATE)
+  
   list(
     data = cleaned, # full data for raw download
-    bird_count = bird_count
+    bird_count = bird_count,
+    species_count = species_count, # total unique waterbird species
+    district_count = district_count, # total districts with data
+    state_count = state_count      # total states/UTs with data
   )
 }

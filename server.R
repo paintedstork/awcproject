@@ -22,6 +22,10 @@ server <- function(input, output, session) {
   main_data_ready    <- reactiveVal(NULL)   # full EBird main data, used only by species summary
   
   observe({
+    invalidateLater(25000, session)  # ping every 25 seconds
+  })
+  
+  observe({
     query <- parseQueryString(session$clientData$url_search)
     
     if (is.null(query$action)) {
@@ -38,6 +42,9 @@ server <- function(input, output, session) {
           summary_data_ready(list(
             summary     = results$summaries,
             bird_count  = results$main_summary$bird_count,
+            species_count   = results$main_summary$species_count  %||% 0,
+            district_count  = results$main_summary$district_count %||% 0,
+            state_count     = results$main_summary$state_count    %||% 0,
             zip_created = zip_info$created_time
           ))
           
@@ -74,6 +81,9 @@ server <- function(input, output, session) {
         summary_data_ready(list(
           summary     = qc_summary,
           bird_count  = main_summary$bird_count,
+          species_count   = main_summary$species_count  %||% 0,
+          district_count  = main_summary$district_count %||% 0,
+          state_count     = main_summary$state_count    %||% 0,
           zip_created = zip_info$created_time
         ))
         
@@ -106,6 +116,14 @@ server <- function(input, output, session) {
   output$covered_earlier <- renderDT({
     req(summary_data_ready())
     datatable(summary_data_ready()$summary$covered_earlier,
+              escape = FALSE,
+              rownames = FALSE,
+              options = list(pageLength = 100))
+  })
+
+  output$covered_later <- renderDT({
+    req(summary_data_ready())
+    datatable(summary_data_ready()$summary$covered_later,
               escape = FALSE,
               rownames = FALSE,
               options = list(pageLength = 100))
@@ -396,7 +414,15 @@ server <- function(input, output, session) {
   # Animated Dashboard Gauges
   # --------------------------
   
-  vals <- reactiveVal(list(days = 0, wetlands = 0, birds = 0))
+  vals <- reactiveVal(list(
+    days = 0,
+    wetlands = 0,
+    birds = 0,
+    species = 0,
+    districts = 0,
+    states = 0
+  ))
+  
   
   
   # Function to animate a single gauge
@@ -434,11 +460,17 @@ server <- function(input, output, session) {
     wetlands_df <- summary_data_ready()$summary$survey_completed
     wetlands_count <- if (!is.null(wetlands_df)) nrow(wetlands_df) else 0
     birds_count <- summary_data_ready()$bird_count %||% 0
+    species_count  <- summary_data_ready()$species_count  %||% 0
+    district_count <- summary_data_ready()$district_count %||% 0
+    state_count    <- summary_data_ready()$state_count    %||% 0
     
     vals(list(
       days = as.numeric(current_day),
       wetlands = as.numeric(wetlands_count),
-      birds = as.numeric(birds_count)
+      birds = as.numeric(birds_count),
+      species = as.numeric(species_count),
+      districts = as.numeric(district_count),
+      states = as.numeric(state_count)
     ))
     
     # Animate the gauges
@@ -478,6 +510,21 @@ server <- function(input, output, session) {
         "birds_gauge", 0, v$birds,
         max = max(1000000, v$birds),
         color = "#F39C12"
+      )
+      animate_gauge(
+        "species_gauge", 0, v$species,
+        max = max(255, v$species),
+        color = "#9B59B6"
+      )
+      animate_gauge(
+        "districts_gauge", 0, v$districts,
+        max = max(735, v$districts),
+        color = "#1ABC9C"
+      )
+      animate_gauge(
+        "states_gauge", 0, v$states,
+        max = max(36, v$states),
+        color = "#E74C3C"
       )
     }
   })

@@ -98,6 +98,7 @@ ui <- function(request) {
         menuItem("No Hotspot Lists", tabName = "no_hotspot_lists", icon = icon("map-marker-alt")),
         menuItem("Incomplete Lists", tabName = "incomplete_lists", icon = icon("exclamation-triangle")),
         menuItem("Species Summary", tabName = "species_summary", icon = icon("dove")),
+        menuItem("Covered Later", tabName = "covered_later", icon = icon("clock")),
         menuItem("About", tabName = "about", icon = icon("info-circle"))
       )
     ),
@@ -171,7 +172,16 @@ ui <- function(request) {
                                 div(class = "circle-label", "Wetlands"))),
                   column(4, div(class = "circle-box",
                                 gaugeOutput("birds_gauge", width = "200px", height = "200px"),
-                                div(class = "circle-label", "Waterbirds")))
+                                div(class = "circle-label", "Waterbirds"))),
+                  column(4, div(class = "circle-box",
+                                gaugeOutput("states_gauge", width = "200px", height = "200px"),
+                                div(class = "circle-label", "States/UTs"))),
+                  column(4, div(class = "circle-box",
+                                gaugeOutput("districts_gauge", width = "200px", height = "200px"),
+                                div(class = "circle-label", "Districts"))),
+                  column(4, div(class = "circle-box",
+                                gaugeOutput("species_gauge", width = "200px", height = "200px"),
+                                div(class = "circle-label", "Waterbird Species")))
                 ),
                 br(), br()
         ),
@@ -192,6 +202,12 @@ ui <- function(request) {
                 h3("Wetlands Covered Earlier (Outside Recommended Dates)"),
                 br(),
                 DTOutput("covered_earlier")
+        ),
+
+        tabItem(tabName = "covered_later",
+                h3("Wetlands Covered Later (Outside Recommended Dates)"),
+                br(),
+                DTOutput("covered_later")
         ),
         
         tabItem(tabName = "no_hotspot_lists",
@@ -230,6 +246,7 @@ ui <- function(request) {
                     tags$li("In the absence of counts from the recommended period, counts from any dates between December and January are also accepted."),
                     tags$li("The ‘Survey Completed’ tab indicates wetlands where counts are already completed."),
                     tags$li("The ‘Covered Earlier’ tab shows wetlands covered before the recommended dates, which can be revisited during the recommended period."),
+                    tags$li("The ‘Covered Later’ tab shows wetlands covered after the recommended dates."),
                     tags$li("AWC counts are accepted only from hotspots. Lists under ‘No Hotspot Lists’ indicate that hotspot editors need to approve the user-suggested hotspots or contact observers regarding hotspot creation."),
                     tags$li("The ‘Species Summary’ tab is based only on lists submitted within the recommended dates following the AWC protocols."),
                     tags$li("If more than one list is submitted for a hotspot, the species summary includes one amongst the several lists. In that sense, the summary is tentative and can change"),
@@ -243,6 +260,7 @@ ui <- function(request) {
                   tags$hr(),
                   tags$b("Change Log:"),
                   tags$ul(
+                    tags$li("Added covered later, three new overview dials, recommended dates column - 05 January 2025"),
                     tags$li("Fixed loading of species summary - 03 January 2026. Known bugs: 1. . Download of country data has a stale datafile."),
                     tags$li("Optimized load time - 31 December 2025"),
                     tags$li("Added Animated Dashboard - 29 December 2025"),
