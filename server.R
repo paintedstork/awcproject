@@ -13,7 +13,7 @@ if (!is.null(query_env$action) && query_env$action == "run" && query_env$key == 
 server <- function(input, output, session) {
   # Load configs & helpers
   regionVal <- reactiveVal(NULL)
-  regionType <- reactiveVal(NULL)
+  regionType <- reactiveVal("")
   
   authenticate_drive(drive_json)
   authenticate_form_sheets(drive_json)
@@ -99,7 +99,7 @@ server <- function(input, output, session) {
         )
         
         main_summary <- prepare_main_summary(
-          data_list$main, default_start_date, default_end_date, region = regionVal(), regionType = regionType()
+          data_list$main, default_start_date, default_end_date, regionVal = regionVal(), regionType = regionType()
         )
         
         summary_data_ready(list(
@@ -221,7 +221,7 @@ server <- function(input, output, session) {
       
       data_list <- read_ebird_data(zip_path, zip_file, region = regionVal(), regionType = regionType())
       main_summary <- prepare_main_summary(
-        data_list$main, default_start_date, default_end_date, region = regionVal(), regionType = regionType()
+        data_list$main, default_start_date, default_end_date, regionVal = regionVal(), regionType = regionType()
       )
       
       main_data_ready(main_summary$data)

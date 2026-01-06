@@ -469,11 +469,11 @@ species_summary_table <- function(main_data, india_com_names) {
   return(summary_df)
 }
 
-prepare_main_summary <- function(main_data, start_date, end_date, region = NULL, regionType = "") {
+prepare_main_summary <- function(main_data, start_date, end_date, regionVal = NULL, regionType = NULL) {
   
   if(regionType == "District")
   {
-    match_idx <- grep(paste0("^", region, "$"), main_data$COUNTY.CODE)
+    match_idx <- grep(paste0("^", regionVal, "$"), main_data$COUNTY.CODE)
     if (length(match_idx) > 0) {
       region <- main_data$COUNTY[match_idx[1]]  # pick first match
     } else {
@@ -483,7 +483,7 @@ prepare_main_summary <- function(main_data, start_date, end_date, region = NULL,
   else if (regionType == "State")
   {
     # Find matching state name from STATE.CODE
-    match_idx <- grep(paste0("^", region, "$"), main_data$STATE.CODE)
+    match_idx <- grep(paste0("^", regionVal, "$"), main_data$STATE.CODE)
     if (length(match_idx) > 0) {
       region <- main_data$STATE[match_idx[1]]
     } else {
