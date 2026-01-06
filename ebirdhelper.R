@@ -16,7 +16,7 @@ read_waterbird_list <- function()
 }
 
 # Read eBird data from zip
-read_ebird_data <- function(zip_path, zip_file) {
+read_ebird_data <- function(zip_path, zip_file, region = NULL, regionType = "") {
   # Full path to the zip
   zip_full <- file.path(zip_path, zip_file)
   
@@ -103,6 +103,28 @@ read_ebird_data <- function(zip_path, zip_file) {
   # Add GROUP.ID for sampling
   sampling_data <- sampling_data %>%
     mutate(GROUP.ID = ifelse(is.na(GROUP.IDENTIFIER), SAMPLING.EVENT.IDENTIFIER, GROUP.IDENTIFIER))
+  
+  # ---------------------------------------------------------------
+  # ✅ Region filtering logic
+  # ---------------------------------------------------------------
+  if (!is.null(region)) {
+    message("🗺️ Region parameter detected: ", region)
+    
+
+    # Check if code exists
+    if ((regionType == "District") && any(sampling_data$COUNTY.CODE == region, na.rm = TRUE)) {
+      message("➡️  Filtering by district: ", region)
+      sampling_data <- sampling_data %>% filter(COUNTY.CODE == region)
+      main_data     <- main_data %>% filter(COUNTY.CODE == region)
+    } else if ((regionType == "State") && any(sampling_data$STATE.CODE == region, na.rm = TRUE)) {
+      message("➡️  Filtering by state: ", region)
+      sampling_data <- sampling_data %>% filter(STATE.CODE == region)
+      main_data     <- main_data %>% filter(STATE.CODE == region)
+    } else {
+      message("⚠️  Region code ", region, " not found in sampling data — using full dataset.")
+    }
+  }
+  
   
   list(main = main_data, sampling = sampling_data)
 }
@@ -447,7 +469,34 @@ species_summary_table <- function(main_data, india_com_names) {
   return(summary_df)
 }
 
-prepare_main_summary <- function(main_data, start_date, end_date) {
+prepare_main_summary <- function(main_data, start_date, end_date, region = NULL, regionType = "") {
+  
+  if(regionType == "District")
+  {
+    match_idx <- grep(paste0("^", region, "$"), main_data$COUNTY.CODE)
+    if (length(match_idx) > 0) {
+      region <- main_data$COUNTY[match_idx[1]]  # pick first match
+    } else {
+      region <- "India"
+    }
+  }
+  else if (regionType == "State")
+  {
+    # Find matching state name from STATE.CODE
+    match_idx <- grep(paste0("^", region, "$"), main_data$STATE.CODE)
+    if (length(match_idx) > 0) {
+      region <- main_data$STATE[match_idx[1]]
+    } else {
+      region <- "India"
+    }
+  }
+  else
+  {
+    region = "India"
+  }
+  
+  print(region)
+  
   cleaned <- prepare_main_data(main_data, start_date, end_date)
   
   waterbirds <- read_waterbird_list()
@@ -474,6 +523,7 @@ prepare_main_summary <- function(main_data, start_date, end_date) {
     bird_count = bird_count,
     species_count = species_count, # total unique waterbird species
     district_count = district_count, # total districts with data
-    state_count = state_count      # total states/UTs with data
+    state_count = state_count,      # total states/UTs with data
+    regionName = region
   )
 }

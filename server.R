@@ -12,6 +12,8 @@ if (!is.null(query_env$action) && query_env$action == "run" && query_env$key == 
 
 server <- function(input, output, session) {
   # Load configs & helpers
+  regionVal <- reactiveVal(NULL)
+  regionType <- reactiveVal(NULL)
   
   authenticate_drive(drive_json)
   authenticate_form_sheets(drive_json)
@@ -27,6 +29,27 @@ server <- function(input, output, session) {
   
   observe({
     query <- parseQueryString(session$clientData$url_search)
+    
+    if (!is.null(query$region)) {
+      region_detected <- query$region
+      
+      # Match valid formats: "IN-XX" or "IN-XX-YY"
+      if (grepl("^IN-[A-Z]{2}$", region_detected)) {
+        regionVal(region_detected)
+        regionType("State")
+        readsummaries <- FALSE
+        message("🌍 Selected region: ", region_detected)
+      } else if (grepl("^IN-[A-Z]{2}-[A-Z]{2,}$", region_detected)) {
+        regionVal(region_detected)
+        regionType("District")
+        readsummaries <- FALSE
+        message("🌍 Selected sub-region: ", region_detected)
+      } else {
+        message("⚠️ Invalid region format: ", region_detected, " — showing default view.")
+        regionVal <- NULL
+        regionType("")
+      }
+    }
     
     if (is.null(query$action)) {
       t_start <- Sys.time()
@@ -45,7 +68,8 @@ server <- function(input, output, session) {
             species_count   = results$main_summary$species_count  %||% 0,
             district_count  = results$main_summary$district_count %||% 0,
             state_count     = results$main_summary$state_count    %||% 0,
-            zip_created = zip_info$created_time
+            zip_created     = zip_info$created_time,
+            regionName      = "India"
           ))
           
           shinyjs::runjs("$('#loading-overlay').fadeOut(500);")
@@ -65,7 +89,7 @@ server <- function(input, output, session) {
         zip_path <- dirname(zip_info$file_path)
         zip_file <- basename(zip_info$file_path)
         
-        data_list <- read_ebird_data(zip_path, zip_file)
+        data_list <- read_ebird_data(zip_path, zip_file, region = regionVal(), regionType = regionType())
         form_data <- get_form_data(sheet_url)
         message("✅ Form data loaded with ", nrow(form_data), " entries.")
         
@@ -75,18 +99,21 @@ server <- function(input, output, session) {
         )
         
         main_summary <- prepare_main_summary(
-          data_list$main, default_start_date, default_end_date
+          data_list$main, default_start_date, default_end_date, region = regionVal(), regionType = regionType()
         )
         
         summary_data_ready(list(
-          summary     = qc_summary,
-          bird_count  = main_summary$bird_count,
+          summary         = qc_summary,
+          bird_count      = main_summary$bird_count,
           species_count   = main_summary$species_count  %||% 0,
           district_count  = main_summary$district_count %||% 0,
           state_count     = main_summary$state_count    %||% 0,
-          zip_created = zip_info$created_time
+          zip_created     = zip_info$created_time,
+          regionName      = main_summary$regionName
         ))
+        # 🔧 Save the full main dataset for species summary
         
+        message("🧾 main_data_ready() rows: ", nrow(main_summary$data))
         shinyjs::runjs("$('#loading-overlay').fadeOut(500);")
       }
       
@@ -102,7 +129,7 @@ server <- function(input, output, session) {
     req(summary_data_ready())
     datatable(summary_data_ready()$summary$summary,
               rownames = FALSE,
-              options = list(pageLength = 100))
+              options = list(pageLength = 100, scrollX = TRUE))
   })
   
   output$survey_completed <- renderDT({
@@ -110,7 +137,7 @@ server <- function(input, output, session) {
     datatable(summary_data_ready()$summary$survey_completed,
               escape = FALSE,
               rownames = FALSE,
-              options = list(pageLength = 100))
+              options = list(pageLength = 100, scrollX = TRUE))
   })
   
   output$covered_earlier <- renderDT({
@@ -118,7 +145,7 @@ server <- function(input, output, session) {
     datatable(summary_data_ready()$summary$covered_earlier,
               escape = FALSE,
               rownames = FALSE,
-              options = list(pageLength = 100))
+              options = list(pageLength = 100, scrollX = TRUE))
   })
 
   output$covered_later <- renderDT({
@@ -126,7 +153,7 @@ server <- function(input, output, session) {
     datatable(summary_data_ready()$summary$covered_later,
               escape = FALSE,
               rownames = FALSE,
-              options = list(pageLength = 100))
+              options = list(pageLength = 100, scrollX = TRUE))
   })
   
   output$no_hotspot_lists <- renderDT({
@@ -134,7 +161,7 @@ server <- function(input, output, session) {
     datatable(summary_data_ready()$summary$no_hotspot_lists,
               escape = FALSE,
               rownames = FALSE,
-              options = list(pageLength = 100))
+              options = list(pageLength = 100, scrollX = TRUE))
   })
   
   output$incomplete_lists <- renderDT({
@@ -142,7 +169,7 @@ server <- function(input, output, session) {
     datatable(summary_data_ready()$summary$incomplete_lists,
               escape = FALSE,
               rownames = FALSE,
-              options = list(pageLength = 100))
+              options = list(pageLength = 100, scrollX = TRUE))
   })
   
   output$zip_date <- renderText({
@@ -151,6 +178,10 @@ server <- function(input, output, session) {
            "%d %B %Y, %H:%M IST")
   })
   
+  output$region <- renderText({
+    req(summary_data_ready()$regionName)
+    summary_data_ready()$regionName
+  })
   
   # --------------------------
   # Species Summary Tab Logic (Fully Fixed)
@@ -188,9 +219,9 @@ server <- function(input, output, session) {
       zip_path <- dirname(zip_info2$file_path)
       zip_file <- basename(zip_info2$file_path)
       
-      data_list <- read_ebird_data(zip_path, zip_file)
+      data_list <- read_ebird_data(zip_path, zip_file, region = regionVal(), regionType = regionType())
       main_summary <- prepare_main_summary(
-        data_list$main, default_start_date, default_end_date
+        data_list$main, default_start_date, default_end_date, region = regionVal(), regionType = regionType()
       )
       
       main_data_ready(main_summary$data)

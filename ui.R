@@ -87,6 +87,13 @@ ui <- function(request) {
             text-align: center;
             margin-top: -100px;
           }
+          
+          @media (max-width: 768px) {
+          .circle-label {
+            margin-top: -60px;
+            font-size: 16px;
+            }
+          }
         "))
       ),
       sidebarMenu(
@@ -107,6 +114,34 @@ ui <- function(request) {
       useShinyjs(),   # <-- correct place      
       # Loading overlay
       # Responsive loading overlay
+      
+      tags$head(
+        tags$style(HTML("
+    /* Ensure all DT tables scroll properly on small screens */
+    .dataTables_wrapper {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    /* Optional: prevent table text from wrapping weirdly */
+    table.dataTable {
+      white-space: nowrap;
+    }
+
+    /* Adjust font and spacing for smaller screens */
+    @media (max-width: 768px) {
+      table.dataTable td {
+        font-size: 12px;
+        padding: 4px;
+      }
+      table.dataTable th {
+        font-size: 12px;
+        padding: 4px;
+      }
+    }
+  "))
+      ),
+      
       div(
         id = "loading-overlay",
         style = "
@@ -155,13 +190,17 @@ ui <- function(request) {
       }
     }
   ")),
-        
         img(src = "loading.jpg"),
         p("Loading data, please wait...")
       ),
       tabItems(
         tabItem(tabName = "dashboard",
-                h2(HTML("Asian Waterbird Census<br>03–18 January 2026"), align = "center"),
+                div(
+                  align = "center",
+                  h2(HTML("Asian Waterbird Census<br>03–18 January 2026")),
+                  br(),
+                  h3(textOutput("region"), style = "color: #2E4053; font-weight: normal;")
+                ),
                 br(),
                 fluidRow(
                   column(4, div(class = "circle-box",
@@ -260,6 +299,8 @@ ui <- function(request) {
                   tags$hr(),
                   tags$b("Change Log:"),
                   tags$ul(
+                    tags$li("Added better support for small devices, added region name - 06 January 2025"),
+                    tags$li("Added region specific dashboard - 05 January 2025"),
                     tags$li("Added covered later, three new overview dials, recommended dates column - 05 January 2025"),
                     tags$li("Fixed loading of species summary - 03 January 2026. Known bugs: 1. . Download of country data has a stale datafile."),
                     tags$li("Optimized load time - 31 December 2025"),
@@ -279,6 +320,16 @@ ui <- function(request) {
                 h3("Species Summary by Region (Recommended Dates)"),
                 br(),
                 
+                # Mobile-friendly layout fix
+                tags$head(
+                  tags$style(HTML("
+                    @media (max-width: 768px) {
+                      .form-group {
+                        width: 100% !important;
+                      }
+                    }
+                  "))
+                ),
                 # Filters
                 fluidRow(
                   column(4,
