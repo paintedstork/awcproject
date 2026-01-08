@@ -469,7 +469,7 @@ species_summary_table <- function(main_data, india_com_names) {
   return(summary_df)
 }
 
-prepare_main_summary <- function(main_data, start_date, end_date, regionVal = NULL, regionType = NULL) {
+prepare_main_summary <- function(main_data, start_date, end_date, regionVal = NULL, regionType = "") {
   
   if(regionType == "District")
   {

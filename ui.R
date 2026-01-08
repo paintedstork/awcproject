@@ -141,7 +141,14 @@ ui <- function(request) {
     }
   "))
       ),
-      
+      # Auto-collapse sidebar after selecting a tab
+      tags$script(HTML("
+    $(document).on('click', '.sidebar-menu a', function() {
+      if ($(window).width() < 768) {
+        $('.main-sidebar').removeClass('sidebar-open');
+      }
+    });
+  ")), 
       div(
         id = "loading-overlay",
         style = "
