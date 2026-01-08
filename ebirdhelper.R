@@ -237,19 +237,20 @@ generate_summary_tables <- function(sampling_data, form_data, start_date, end_da
     arrange(State, District, Wetland)
   
   summary_table <- dedup %>%
+    filter (ALL.SPECIES.REPORTED == 1) %>%
     group_by(STATE, COUNTY) %>%
     summarise(
-      `Covered (Recommended Dates)` = n_distinct(LOCALITY.ID[is_recommended]),
+      `Covered (Recommended Dates)` = n_distinct(LOCALITY.ID[is_recommended & (LOCALITY.TYPE == "H")]),
       `Covered (Earlier)` = n_distinct(LOCALITY.ID[
-        OBSERVATION.DATE < start_date &
-          OBSERVATION.DATE >= as.Date(paste0(year(end_date) - 1, "-12-01"))
+        (OBSERVATION.DATE < start_date) &  (LOCALITY.TYPE == "H") &
+          (OBSERVATION.DATE >= as.Date(paste0(year(end_date) - 1, "-12-01")))
       ]),
       `Covered (Later)` = n_distinct(LOCALITY.ID[
-        OBSERVATION.DATE > end_date &
+        OBSERVATION.DATE > end_date &  (LOCALITY.TYPE == "H") & 
           OBSERVATION.DATE <= as.Date(paste0(year(end_date), "-02-28"))
       ]),
-      `No Hotspot Lists` = n_distinct(SAMPLING.EVENT.IDENTIFIER[is.na(LOCALITY.ID) | LOCALITY.TYPE != "H"]),
-      `Form Submitted` = sum(Form_Submitted == "Yes", na.rm = TRUE),
+      `No Hotspot Lists` = n_distinct(SAMPLING.EVENT.IDENTIFIER[(is.na(LOCALITY.ID) | (LOCALITY.TYPE != "H"))]),
+      `Form Submitted` = sum(Form_Submitted == "Yes" & LOCALITY.TYPE == "H", na.rm = TRUE),
       .groups = "drop"
     ) %>%
     rename(State = STATE, District = COUNTY)
@@ -367,10 +368,9 @@ prepare_main_data <- function(main_data, start_date, end_date) {
       ALL.SPECIES.REPORTED == 1,
       APPROVED == 1,
       !(EXOTIC.CODE %in% c("X", "P")),
+      OBSERVATION.COUNT != 'X',
       OBSERVATION.DATE >= start_date & OBSERVATION.DATE <= end_date
     ) %>%
-    # Remove OBSERVATION.COUNT marked as "X"
-    mutate(OBSERVATION.COUNT = as.numeric(ifelse(OBSERVATION.COUNT == "X", NA, OBSERVATION.COUNT))) %>%
     # Deduplicate using GROUP.ID (like sampling)
     mutate(GROUP.ID = ifelse(is.na(GROUP.IDENTIFIER), SAMPLING.EVENT.IDENTIFIER, GROUP.IDENTIFIER)) %>%
     group_by(GROUP.ID, SCIENTIFIC.NAME) %>%

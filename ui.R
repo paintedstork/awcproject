@@ -306,6 +306,7 @@ ui <- function(request) {
                   tags$hr(),
                   tags$b("Change Log:"),
                   tags$ul(
+                    tags$li("Fixed issues with counts in summary page - 08 January 2025"),
                     tags$li("Added better support for small devices, added region name - 06 January 2025"),
                     tags$li("Added region specific dashboard - 05 January 2025"),
                     tags$li("Added covered later, three new overview dials, recommended dates column - 05 January 2025"),
