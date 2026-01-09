@@ -146,12 +146,12 @@ generate_summary_tables <- function(sampling_data, form_data, start_date, end_da
       event_num = as.numeric(str_remove(SAMPLING.EVENT.IDENTIFIER, "^S"))
     )
   
-  # ---- Step 1b: Join form data to mark 'Form Submitted' ----
+  # ---- Step 1b: Join form data to mark 'Form Submitted' intelligently ----
   samp <- samp %>%
-    # Extract only the first checklist ID from form_data$List
     mutate(Form_List_ID = SAMPLING.EVENT.IDENTIFIER %in% form_data$List) %>%
-    # Add a column to mark "Form Submitted" if it exists in form_data
-    mutate(Form_Submitted = if_else(Form_List_ID, "Yes", "No"))
+    group_by(GROUP.ID) %>%
+    mutate(Form_Submitted = if_else(any(Form_List_ID, na.rm = TRUE), "Yes", "No")) %>%
+    ungroup()
   
   # ---- Step 2. Deduplicate by GROUP.ID ----
   dedup <- samp %>%
